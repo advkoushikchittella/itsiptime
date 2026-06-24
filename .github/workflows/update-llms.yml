@@ -14,7 +14,7 @@ jobs:
       - name: Fetch Latest Blogger RSS Feeds
         run: |
           # Fetch your clean, structured live Blogger data stream
-          curl -s "https://www.itsiptime.com/feeds/posts/default?alt=rss" > feed.xml
+          curl -s "https://itsiptime.com" > feed.xml
           
           # Run the corrected parsing script to isolate and format your recent posts
           python3 -c "
@@ -43,30 +43,35 @@ jobs:
                   new_posts_block = '\n'.join(posts) + '\n\n'
                   final_text = f'{before}{start_marker}{new_posts_block}{end_marker}{after}'
                   
-                  # 1. Update the raw llms.txt markdown file for LLM scrapers
+                  # 1. Update the raw tracking file locally
                   with open('llms.txt', 'w') as f_out:
                       f_out.write(final_text)
-                  print('Successfully updated raw llms.txt markdown file.')
+                  print('Successfully updated raw markdown template.')
                   
-                  # 2. Generate the index.html redirect folder structure for browsers
-                  os.makedirs('llms.txt.dir', exist_ok=True)
+                  # 2. Setup the folder infrastructure for GitHub Pages deployment
+                  os.makedirs('llms.txt_dir', exist_ok=True)
+                  
+                  # Save a text version copy for crawlers inside the directory mapping
+                  with open('llms.txt_dir/index.txt', 'w') as txt_out:
+                      txt_out.write(final_text)
+                      
+                  # Build the instant browser redirect for human traffic
                   html_content = '''<!DOCTYPE html>
           <html>
           <head>
-            <meta http-equiv=\"refresh\" content=\"0; url=https://itsiptime.com\">
+            <meta http-equiv=\"refresh\" content=\"0; url=https://www.itsiptime.com\">
             <script type=\"text/javascript\">
-              window.location.replace(\"https://itsiptime.com\");
+              window.location.replace(\"https://www.itsiptime.com\");
             </script>
           </head>
           <body>
-            <p>Redirecting to <a href=\"https://itsiptime.com\">itsiptime.com</a>...</p>
+            <p>Redirecting to <a href=\"https://www.itsiptime.com\">itsiptime.com</a>...</p>
           </body>
           </html>'''
                   
-                  with open('llms.txt.dir/index.html', 'w') as html_out:
+                  with open('llms.txt_dir/index.html', 'w') as html_out:
                       html_out.write(html_content)
-                  print('Successfully generated index.html redirect template.')
-                  
+                  print('Successfully generated deployment structure.')
               else:
                   print('Error: Target markdown structural layout headers not found.')
           except Exception as e:
@@ -74,12 +79,15 @@ jobs:
               exit(1)
           "
 
-      - name: Deploy Folder Restructuring
+      - name: Reorganize Files for Routing
         run: |
-          # Clean up temporary storage and swap HTML folder layout with Pages routing priority
-          mv llms.txt llms_raw.txt
-          mv llms.txt.dir llms.txt
-          mv llms_raw.txt llms.txt/llms.txt
+          # Keep the root template safe for git tracking
+          mv llms.txt llms_template.txt
+          # Replace the root file placement with our specialized folder structure
+          mv llms.txt_dir llms.txt
+          # Put the editable markdown copy back in root so the script continues working next week
+          cp llms_template.txt llms_template.txt_hold
+          mv llms_template.txt_hold llms.txt
 
       - name: Commit and Push Changes Natively
         uses: stefanzweifel/git-auto-commit-action@v5
