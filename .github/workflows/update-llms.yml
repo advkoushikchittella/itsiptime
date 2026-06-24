@@ -1,96 +1,67 @@
 name: Auto Update llms.txt Recent Posts
+
 on:
   schedule:
-    - cron: '0 0 * * 0' # Automatically runs every Sunday at midnight
-  workflow_dispatch: # Allows you to manually click a button to run it anytime
+    - cron: '0 0 * * 0'   # Every Sunday at midnight UTC
+  workflow_dispatch:        # Manual trigger via GitHub Actions tab
 
 jobs:
   update-blog-posts:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-      - name: Fetch Latest Blogger RSS Feeds
+
+      - name: Fetch Latest Blogger RSS and Update llms.txt
         run: |
-          # Fetch your clean, structured live Blogger data stream
           curl -s "https://www.itsiptime.com/feeds/posts/default?alt=rss" > feed.xml
-          
-          # Run the corrected parsing script to isolate and format your recent posts
+
           python3 -c "
           import xml.etree.ElementTree as ET
-          import os
-          
+
           try:
               root = ET.parse('feed.xml').getroot()
-              posts = []
               items = root.findall('.//item')[:4]
-              
+              posts = []
+
               for item in items:
-                  title = item.find('title').text.replace('\"', '\'').strip()
+                  title = item.find('title').text.replace('\"', \"'\").strip()
                   link = item.find('link').text.strip()
                   posts.append(f'- [{title}]({link}): Review a recent court judgment update.')
-              
-              with open('llms.txt', 'r') as f:
+
+              # llms_template.txt is the source of truth for static sections
+              with open('llms_template.txt', 'r') as f:
                   content = f.read()
-                  
+
               start_marker = '## Recent Court Judgment Breakdowns\n'
               end_marker = '\n## IP Law Case Analysis (By Category)'
-              
-              if start_marker in content and end_marker in content:
-                  # FIX: Access individual elements via list indices [0] and [1]
-                  before = content.split(start_marker)[0]
-                  after = content.split(end_marker)[1]
-                  new_posts_block = '\n'.join(posts) + '\n\n'
-                  final_text = f'{before}{start_marker}{new_posts_block}{end_marker}{after}'
-                  
-                  # 1. Update the raw tracking file locally
-                  with open('llms.txt', 'w') as f_out:
-                      f_out.write(final_text)
-                  print('Successfully updated raw markdown template.')
-                  
-                  # 2. Setup the folder infrastructure for GitHub Pages deployment
-                  os.makedirs('llms.txt_dir', exist_ok=True)
-                  
-                  # Save a text version copy for crawlers inside the directory mapping
-                  with open('llms.txt_dir/index.txt', 'w') as txt_out:
-                      txt_out.write(final_text)
-                      
-                  # Build the instant browser redirect for human traffic
-                  html_content = '''<!DOCTYPE html>
-          <html>
-          <head>
-            <meta http-equiv=\"refresh\" content=\"0; url=https://www.itsiptime.com\">
-            <script type=\"text/javascript\">
-              window.location.replace(\"https://www.itsiptime.com\");
-            </script>
-          </head>
-          <body>
-            <p>Redirecting to <a href=\"https://www.itsiptime.com\">itsiptime.com</a>...</p>
-          </body>
-          </html>'''
-                  
-                  with open('llms.txt_dir/index.html', 'w') as html_out:
-                      html_out.write(html_content)
-                  print('Successfully generated deployment structure.')
-              else:
-                  print('Error: Target markdown structural layout headers not found.')
+
+              if start_marker not in content or end_marker not in content:
+                  print('Error: Section headers not found in llms_template.txt.')
+                  exit(1)
+
+              before = content.split(start_marker)[0]
+              after = content.split(end_marker)[1]
+              new_posts_block = '\n'.join(posts) + '\n\n'
+              final_text = f'{before}{start_marker}{new_posts_block}{end_marker}{after}'
+
+              # Update the template (so next week's run starts from fresh static sections)
+              with open('llms_template.txt', 'w') as f:
+                  f.write(final_text)
+
+              # Write directly to llms.txt — served by GitHub Pages at ai.itsiptime.com/llms.txt
+              with open('llms.txt', 'w') as f:
+                  f.write(final_text)
+
+              print('Successfully updated llms.txt and llms_template.txt.')
+
           except Exception as e:
-              print(f'Script Error: {str(e)}')
+              print(f'Script error: {str(e)}')
               exit(1)
           "
 
-
-      - name: Reorganize Files for Routing
-        run: |
-          # Keep the root template safe for git tracking
-          mv llms.txt llms_template.txt
-          # Replace the root file placement with our specialized folder structure
-          mv llms.txt_dir llms.txt
-          # Put the editable markdown copy back in root so the script continues working next week
-          cp llms_template.txt llms_template.txt_hold
-          mv llms_template.txt_hold llms.txt
-
-      - name: Commit and Push Changes Natively
+      - name: Commit and Push Changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "System: Automatically updated recent blog case links inside llms.txt"
+          commit_message: "Auto: updated recent blog posts in llms.txt"
