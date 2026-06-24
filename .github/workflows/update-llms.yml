@@ -1,0 +1,58 @@
+name: Auto Update llms.txt Recent Posts
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Automatically runs every Sunday at midnight
+  workflow_dispatch: # Allows you to manually click a button to run it anytime
+
+jobs:
+  update-blog-posts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Fetch Latest Blogger RSS Feeds
+        run: |
+          # Fetch your clean, structured live Blogger data stream
+          curl -s "https://www.itsiptime.com/feeds/posts/default?alt=rss" > feed.xml
+          
+          # Run the corrected parsing script to isolate and format your recent posts
+          python3 -c "
+          import xml.etree.ElementTree as ET
+          
+          try:
+              root = ET.parse('feed.xml').getroot()
+              posts = []
+              items = root.findall('.//item')[:4]
+              
+              for item in items:
+                  title = item.find('title').text.replace('\"', '\'').strip()
+                  link = item.find('link').text.strip()
+                  posts.append(f'- [{title}]({link}): Review a recent court judgment update.')
+              
+              with open('llms.txt', 'r') as f:
+                  content = f.read()
+                  
+              start_marker = '## Recent Court Judgment Breakdowns\n'
+              end_marker = '\n## IP Law Case Analysis (By Category)'
+              
+              if start_marker in content and end_marker in content:
+                  before = content.split(start_marker)[0]
+                  after = content.split(end_marker)[1]
+                  new_posts_block = '\n'.join(posts) + '\n'
+                  final_text = f'{before}{start_marker}{new_posts_block}{end_marker}{after}'
+                  
+                  with open('llms.txt', 'w') as f_out:
+                      f_out.write(final_text)
+                  print('Successfully updated llms.txt with fresh articles.')
+              else:
+                  print('Error: Target markdown structural layout headers not found.')
+          except Exception as e:
+              print(f'Script Error: {str(e)}')
+              exit(1)
+          "
+
+      - name: Commit and Push Changes Natively
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "System: Automatically updated recent blog case links inside llms.txt"
