@@ -19,6 +19,7 @@ jobs:
           # Run the corrected parsing script to isolate and format your recent posts
           python3 -c "
           import xml.etree.ElementTree as ET
+          import os
           
           try:
               root = ET.parse('feed.xml').getroot()
@@ -42,15 +43,43 @@ jobs:
                   new_posts_block = '\n'.join(posts) + '\n\n'
                   final_text = f'{before}{start_marker}{new_posts_block}{end_marker}{after}'
                   
+                  # 1. Update the raw llms.txt markdown file for LLM scrapers
                   with open('llms.txt', 'w') as f_out:
                       f_out.write(final_text)
-                  print('Successfully updated llms.txt with fresh articles.')
+                  print('Successfully updated raw llms.txt markdown file.')
+                  
+                  # 2. Generate the index.html redirect folder structure for browsers
+                  os.makedirs('llms.txt.dir', exist_ok=True)
+                  html_content = '''<!DOCTYPE html>
+          <html>
+          <head>
+            <meta http-equiv=\"refresh\" content=\"0; url=https://itsiptime.com\">
+            <script type=\"text/javascript\">
+              window.location.replace(\"https://itsiptime.com\");
+            </script>
+          </head>
+          <body>
+            <p>Redirecting to <a href=\"https://itsiptime.com\">itsiptime.com</a>...</p>
+          </body>
+          </html>'''
+                  
+                  with open('llms.txt.dir/index.html', 'w') as html_out:
+                      html_out.write(html_content)
+                  print('Successfully generated index.html redirect template.')
+                  
               else:
                   print('Error: Target markdown structural layout headers not found.')
           except Exception as e:
               print(f'Script Error: {str(e)}')
               exit(1)
           "
+
+      - name: Deploy Folder Restructuring
+        run: |
+          # Clean up temporary storage and swap HTML folder layout with Pages routing priority
+          mv llms.txt llms_raw.txt
+          mv llms.txt.dir llms.txt
+          mv llms_raw.txt llms.txt/llms.txt
 
       - name: Commit and Push Changes Natively
         uses: stefanzweifel/git-auto-commit-action@v5
