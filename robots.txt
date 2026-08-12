@@ -1,5 +1,0 @@
-User-agent: *
-Disallow:
-Allow: /llms.txt
-
-Sitemap: https://ai.itsiptime.com/llms.txt
